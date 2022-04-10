@@ -39,12 +39,46 @@ order by DATEPART(year, date), DATEPART(week, date);
 
 -- joining the two tables 
 
-with deaths_vaccines as 
-(
-select * 
+
+select d.location, d.continent, d.date, v.new_vaccinations, 
+SUM(cast(new_vaccinations AS int)) OVER(PARTITION BY d.location ORDER BY d.location, d.date) as rolling_sum_vac
 from covid..coviddeaths as d
 inner join covid..covidvaccines as v
 	on d.location = v.location
 	and d.date = v.date
+where d.continent is not null
+order by d.location, d.date;
+
+-- as cCTE
+
+with deathvac (location, continent, population, date, new_vaccinations, rolling_sum_vaccinations) as
+(
+select d.location, d.continent, d.population, d.date, v.new_vaccinations, 
+SUM(cast(new_vaccinations AS int)) OVER(PARTITION BY d.location ORDER BY d.location, d.date) as rolling_sum_vac
+from covid..coviddeaths as d
+inner join covid..covidvaccines as v
+	on d.location = v.location
+	and d.date = v.date
+where d.continent is not null
 )
-select * from deaths_vaccines;
+select location, population, date, rolling_sum_vaccinations,
+(rolling_sum_vaccinations/population)*100 as vaccination_perc
+from deathvac;
+
+-- turning into a view to export later
+
+CREATE VIEW percvac as
+with deathvac (location, continent, population, date, new_vaccinations, rolling_sum_vaccinations) as
+(
+select d.location, d.continent, d.population, d.date, v.new_vaccinations, 
+SUM(cast(new_vaccinations AS int)) OVER(PARTITION BY d.location ORDER BY d.location, d.date) as rolling_sum_vac
+from covid..coviddeaths as d
+inner join covid..covidvaccines as v
+	on d.location = v.location
+	and d.date = v.date
+where d.continent is not null
+)
+select location, population, date, rolling_sum_vaccinations,
+(rolling_sum_vaccinations/population)*100 as vaccination_perc
+from deathvac;
+
